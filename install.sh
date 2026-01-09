@@ -178,10 +178,8 @@ install_node() {
 # Check if memvid is already installed
 check_memvid() {
     if command_exists memvid; then
-        MEMVID_VERSION=$(memvid --version 2>/dev/null)
-        if [[ -z "$MEMVID_VERSION" ]]; then
-            MEMVID_VERSION="unknown"
-        fi
+        # Get version - output format is "memvid 2.0.131"
+        MEMVID_VERSION=$(memvid --version 2>&1 | awk '{print $2}')
         print_success "memvid already installed ($MEMVID_VERSION)"
         return 0
     else
@@ -275,7 +273,9 @@ verify() {
     print_info "Verifying installation..."
     
     if command_exists memvid; then
-        MEMVID_VERSION=$(memvid --version 2>/dev/null || echo "unknown")
+        # Get version - output format is "memvid 2.0.131"
+        MEMVID_VERSION=$(memvid --version 2>&1 | awk '{print $2}')
+        
         print_success "memvid is installed and accessible"
         print_info "Version: $MEMVID_VERSION"
         echo ""
