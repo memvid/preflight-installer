@@ -46,19 +46,34 @@ detect_os() {
         fi
     elif [[ -f /etc/os-release ]]; then
         . /etc/os-release
+        DISTRO_NAME="${PRETTY_NAME:-${NAME:-$ID}}"
+        
         if [[ "$ID" == "ubuntu" ]] || [[ "$ID" == "debian" ]]; then
             OS="linux"
             PKG_MANAGER="apt"
-            
-            # Check if sudo is available
-            if ! command_exists sudo; then
-                print_error "sudo is not available"
-                print_info "Please install sudo or run as root"
-                exit 1
-            fi
+            DISTRO_FAMILY="debian"
+        elif [[ "$ID" == "fedora" ]] || [[ "$ID" == "rhel" ]] || [[ "$ID" == "centos" ]] || [[ "$ID" == "rocky" ]] || [[ "$ID" == "almalinux" ]]; then
+            OS="linux"
+            PKG_MANAGER="dnf"
+            DISTRO_FAMILY="rhel"
+        elif [[ "$ID" == "arch" ]] || [[ "$ID" == "manjaro" ]]; then
+            OS="linux"
+            PKG_MANAGER="pacman"
+            DISTRO_FAMILY="arch"
+        elif [[ "$ID" == "alpine" ]]; then
+            OS="linux"
+            PKG_MANAGER="apk"
+            DISTRO_FAMILY="alpine"
         else
             print_error "Unsupported Linux distribution: $ID"
-            print_info "v1 supports Ubuntu and Debian only"
+            print_info "Supported distributions: Ubuntu, Debian, Fedora, RHEL, CentOS, Arch, Alpine"
+            exit 1
+        fi
+        
+        # Check if sudo is available (except for Alpine which might use su)
+        if ! command_exists sudo && [[ "$DISTRO_FAMILY" != "alpine" ]]; then
+            print_error "sudo is not available"
+            print_info "Please install sudo or run as root"
             exit 1
         fi
     else
@@ -66,12 +81,148 @@ detect_os() {
         exit 1
     fi
     
-    print_info "Detected OS: $OS"
+    if [[ "$OS" == "linux" ]]; then
+        print_info "Detected OS: $OS ($DISTRO_NAME)"
+    else
+        print_info "Detected OS: $OS"
+    fi
 }
 
 # Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Check for Xcode Command Line Tools on macOS
+check_xcode_cli_tools() {
+    if [[ "$OS" != "macos" ]]; then
+        return 0
+    fi
+    
+    # Check if Xcode CLI Tools are installed
+    if xcode-select -p &>/dev/null; then
+        print_success "Xcode Command Line Tools already installed"
+        return 0
+    else
+        print_error "Xcode Command Line Tools not found"
+        print_warning "Xcode Command Line Tools are required for everything to work properly"
+        echo ""
+        
+        # Ask for confirmation
+        if [[ -t 0 ]] && [[ -t 1 ]]; then
+            read -p "Install Xcode Command Line Tools now? [Y/n] " -n 1 -r
+            echo
+        elif [[ -c /dev/tty ]]; then
+            read -p "Install Xcode Command Line Tools now? [Y/n] " -n 1 -r < /dev/tty
+            echo
+        else
+            REPLY="Y"
+        fi
+        
+        if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ ! $REPLY == "" ]]; then
+            print_error "Xcode Command Line Tools are required for everything to work properly"
+            print_info "Please install them manually with: xcode-select --install"
+            exit 1
+        fi
+        
+        print_info "Installing Xcode Command Line Tools..."
+        xcode-select --install
+        
+        print_info "Please complete the Xcode Command Line Tools installation in the popup window"
+        print_info "Then run this installer again"
+        exit 0
+    fi
+}
+
+# Install system dependencies for Linux
+install_system_deps() {
+    if [[ "$OS" != "linux" ]]; then
+        return 0
+    fi
+    
+    print_info "Checking system dependencies..."
+    
+    NEEDS_DEPS=false
+    DEPS_TO_INSTALL=()
+    
+    # Check and collect missing dependencies
+    if [[ "$DISTRO_FAMILY" == "debian" ]]; then
+        if ! dpkg -l | grep -q "^ii.*ca-certificates"; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("ca-certificates")
+        fi
+        if ! command_exists curl; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("curl")
+        fi
+        if ! dpkg -l | grep -q "^ii.*libssl3"; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("libssl3")
+        fi
+    elif [[ "$DISTRO_FAMILY" == "rhel" ]]; then
+        if ! rpm -q ca-certificates &>/dev/null; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("ca-certificates")
+        fi
+        if ! command_exists curl; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("curl")
+        fi
+        if ! rpm -q openssl &>/dev/null; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("openssl")
+        fi
+    elif [[ "$DISTRO_FAMILY" == "arch" ]]; then
+        if ! pacman -Q ca-certificates &>/dev/null; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("ca-certificates")
+        fi
+        if ! command_exists curl; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("curl")
+        fi
+        if ! pacman -Q openssl &>/dev/null; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("openssl")
+        fi
+    elif [[ "$DISTRO_FAMILY" == "alpine" ]]; then
+        if ! apk info -e ca-certificates &>/dev/null; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("ca-certificates")
+        fi
+        if ! command_exists curl; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("curl")
+        fi
+        if ! apk info -e openssl &>/dev/null; then
+            NEEDS_DEPS=true
+            DEPS_TO_INSTALL+=("openssl")
+        fi
+    fi
+    
+    if [[ "$NEEDS_DEPS" == false ]]; then
+        print_success "All system dependencies are installed"
+        return 0
+    fi
+    
+    print_info "Installing system dependencies: ${DEPS_TO_INSTALL[*]}..."
+    
+    if [[ "$DISTRO_FAMILY" == "debian" ]]; then
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends "${DEPS_TO_INSTALL[@]}"
+    elif [[ "$DISTRO_FAMILY" == "rhel" ]]; then
+        sudo dnf install -y "${DEPS_TO_INSTALL[@]}"
+    elif [[ "$DISTRO_FAMILY" == "arch" ]]; then
+        sudo pacman -S --noconfirm "${DEPS_TO_INSTALL[@]}"
+    elif [[ "$DISTRO_FAMILY" == "alpine" ]]; then
+        if command_exists sudo; then
+            sudo apk add --no-cache "${DEPS_TO_INSTALL[@]}"
+        else
+            apk add --no-cache "${DEPS_TO_INSTALL[@]}"
+        fi
+    fi
+    
+    print_success "System dependencies installed successfully"
 }
 
 # Check for git
@@ -120,8 +271,20 @@ install_git() {
     if [[ "$OS" == "macos" ]]; then
         brew install git
     elif [[ "$OS" == "linux" ]]; then
-        sudo apt-get update
-        sudo apt-get install -y git
+        if [[ "$DISTRO_FAMILY" == "debian" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y git
+        elif [[ "$DISTRO_FAMILY" == "rhel" ]]; then
+            sudo dnf install -y git
+        elif [[ "$DISTRO_FAMILY" == "arch" ]]; then
+            sudo pacman -S --noconfirm git
+        elif [[ "$DISTRO_FAMILY" == "alpine" ]]; then
+            if command_exists sudo; then
+                sudo apk add --no-cache git
+            else
+                apk add --no-cache git
+            fi
+        fi
     fi
     
     if command_exists git; then
@@ -159,9 +322,23 @@ install_node() {
             export PATH="$BREW_PREFIX/opt/node@lts/bin:$PATH"
         fi
     elif [[ "$OS" == "linux" ]]; then
-        # Install Node.js LTS from NodeSource
-        curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-        sudo apt-get install -y nodejs
+        if [[ "$DISTRO_FAMILY" == "debian" ]]; then
+            # Install Node.js LTS from NodeSource
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y --no-install-recommends nodejs
+        elif [[ "$DISTRO_FAMILY" == "rhel" ]]; then
+            # Install Node.js LTS from NodeSource
+            curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo dnf install -y nodejs
+        elif [[ "$DISTRO_FAMILY" == "arch" ]]; then
+            sudo pacman -S --noconfirm nodejs npm
+        elif [[ "$DISTRO_FAMILY" == "alpine" ]]; then
+            if command_exists sudo; then
+                sudo apk add --no-cache nodejs npm
+            else
+                apk add --no-cache nodejs npm
+            fi
+        fi
     fi
     
     if command_exists node && command_exists npm; then
@@ -297,6 +474,18 @@ main() {
     
     detect_os
     echo ""
+    
+    # Check Xcode CLI Tools on macOS
+    if [[ "$OS" == "macos" ]]; then
+        check_xcode_cli_tools
+        echo ""
+    fi
+    
+    # Install system dependencies on Linux
+    if [[ "$OS" == "linux" ]]; then
+        install_system_deps
+        echo ""
+    fi
     
     install_missing
     echo ""
