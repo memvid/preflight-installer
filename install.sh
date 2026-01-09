@@ -188,11 +188,22 @@ install_missing() {
 install_memvid() {
     print_info "Installing memvid globally..."
     
-    if npm install -g memvid-cli@latest; then
-        print_success "memvid installed successfully"
+    if [[ "$OS" == "linux" ]]; then
+        # Linux requires sudo for global npm installs
+        if sudo npm install -g memvid-cli@latest; then
+            print_success "memvid installed successfully"
+        else
+            print_error "memvid installation failed"
+            exit 1
+        fi
     else
-        print_error "memvid installation failed"
-        exit 1
+        # macOS typically doesn't need sudo if npm was installed via Homebrew
+        if npm install -g memvid-cli@latest; then
+            print_success "memvid installed successfully"
+        else
+            print_error "memvid installation failed"
+            exit 1
+        fi
     fi
 }
 
