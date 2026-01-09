@@ -24,7 +24,7 @@ The installer only installs missing tools (no upgrades in v1).
 ### macOS / Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_REPO/preflight-installer/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/memvid/preflight-installer/main/install.sh | bash
 ```
 
 Or download and run:
@@ -39,7 +39,7 @@ chmod +x install.sh
 Open PowerShell and run:
 
 ```powershell
-irm https://raw.githubusercontent.com/YOUR_REPO/preflight-installer/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/memvid/preflight-installer/main/install.ps1 | iex
 ```
 
 Or download and run:
