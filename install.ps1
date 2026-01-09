@@ -123,12 +123,30 @@ function Install-Node {
     }
 }
 
+# Check if memvid is already installed
+function Test-Memvid {
+    if (Test-Command memvid) {
+        try {
+            $memvidVersion = memvid --version 2>$null
+            Write-Success "memvid already installed ($memvidVersion)"
+            return $true
+        } catch {
+            Write-Success "memvid already installed"
+            return $true
+        }
+    } else {
+        Write-Error "memvid not found"
+        return $false
+    }
+}
+
 # Install missing tools
 function Install-Missing {
     $needsGit = -not (Test-Git)
     $needsNode = -not (Test-Node)
+    $needsMemvid = -not (Test-Memvid)
     
-    if (-not $needsGit -and -not $needsNode) {
+    if (-not $needsGit -and -not $needsNode -and -not $needsMemvid) {
         Write-Info "All dependencies are already installed"
         return
     }
@@ -138,6 +156,7 @@ function Install-Missing {
     Write-Warning "The following tools will be installed:"
     if ($needsGit) { Write-Host "  - git" }
     if ($needsNode) { Write-Host "  - node (LTS)" }
+    if ($needsMemvid) { Write-Host "  - memvid-cli (latest)" }
     Write-Host ""
     
     # Ask for confirmation
@@ -150,6 +169,7 @@ function Install-Missing {
     # Install missing tools
     if ($needsGit) { Install-Git }
     if ($needsNode) { Install-Node }
+    if ($needsMemvid) { Install-Memvid }
 }
 
 # Install memvid
@@ -192,18 +212,14 @@ function Verify-Installation {
 
 # Main execution
 function Main {
-    Write-Host "=========================================="
-    Write-Host "  Memvid Installer v1"
-    Write-Host "=========================================="
+    Write-Host "Memvid Installer"
+    Write-Host "Checking system requirements…"
     Write-Host ""
     
     Test-Winget
     Write-Host ""
     
     Install-Missing
-    Write-Host ""
-    
-    Install-Memvid
     Write-Host ""
     
     Verify-Installation

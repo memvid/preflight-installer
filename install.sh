@@ -36,11 +36,26 @@ detect_os() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         OS="macos"
         PKG_MANAGER="brew"
+        
+        # Check if Homebrew is installed
+        if ! command_exists brew; then
+            print_error "Homebrew is not installed"
+            print_info "Please install Homebrew first:"
+            print_info "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            exit 1
+        fi
     elif [[ -f /etc/os-release ]]; then
         . /etc/os-release
         if [[ "$ID" == "ubuntu" ]] || [[ "$ID" == "debian" ]]; then
             OS="linux"
             PKG_MANAGER="apt"
+            
+            # Check if sudo is available
+            if ! command_exists sudo; then
+                print_error "sudo is not available"
+                print_info "Please install sudo or run as root"
+                exit 1
+            fi
         else
             print_error "Unsupported Linux distribution: $ID"
             print_info "v1 supports Ubuntu and Debian only"
@@ -126,8 +141,22 @@ install_node() {
         # Add to PATH if needed
         if ! command_exists node; then
             print_info "Adding node to PATH..."
-            echo 'export PATH="/opt/homebrew/opt/node@lts/bin:$PATH"' >> ~/.zshrc
-            export PATH="/opt/homebrew/opt/node@lts/bin:$PATH"
+            # Detect Homebrew prefix (Apple Silicon vs Intel)
+            if [[ -d "/opt/homebrew" ]]; then
+                BREW_PREFIX="/opt/homebrew"
+            else
+                BREW_PREFIX="/usr/local"
+            fi
+            
+            # Detect shell
+            if [[ "$SHELL" == *"zsh"* ]]; then
+                SHELL_RC="$HOME/.zshrc"
+            else
+                SHELL_RC="$HOME/.bash_profile"
+            fi
+            
+            echo "export PATH=\"$BREW_PREFIX/opt/node@lts/bin:\$PATH\"" >> "$SHELL_RC"
+            export PATH="$BREW_PREFIX/opt/node@lts/bin:$PATH"
         fi
     elif [[ "$OS" == "linux" ]]; then
         # Install Node.js LTS from NodeSource
@@ -146,10 +175,23 @@ install_node() {
     fi
 }
 
+# Check if memvid is already installed
+check_memvid() {
+    if command_exists memvid; then
+        MEMVID_VERSION=$(memvid --version 2>/dev/null || echo "unknown")
+        print_success "memvid already installed ($MEMVID_VERSION)"
+        return 0
+    else
+        print_error "memvid not found"
+        return 1
+    fi
+}
+
 # Install missing tools
 install_missing() {
     NEEDS_GIT=false
     NEEDS_NODE=false
+    NEEDS_MEMVID=false
     
     if ! check_git; then
         NEEDS_GIT=true
@@ -159,7 +201,11 @@ install_missing() {
         NEEDS_NODE=true
     fi
     
-    if [[ "$NEEDS_GIT" == false ]] && [[ "$NEEDS_NODE" == false ]]; then
+    if ! check_memvid; then
+        NEEDS_MEMVID=true
+    fi
+    
+    if [[ "$NEEDS_GIT" == false ]] && [[ "$NEEDS_NODE" == false ]] && [[ "$NEEDS_MEMVID" == false ]]; then
         print_info "All dependencies are already installed"
         return 0
     fi
@@ -169,6 +215,7 @@ install_missing() {
     print_warning "The following tools will be installed:"
     [[ "$NEEDS_GIT" == true ]] && echo "  - git"
     [[ "$NEEDS_NODE" == true ]] && echo "  - node (LTS)"
+    [[ "$NEEDS_MEMVID" == true ]] && echo "  - memvid-cli (latest)"
     echo ""
     
     # Ask for confirmation
@@ -182,6 +229,7 @@ install_missing() {
     # Install missing tools
     [[ "$NEEDS_GIT" == true ]] && install_git
     [[ "$NEEDS_NODE" == true ]] && install_node
+    [[ "$NEEDS_MEMVID" == true ]] && install_memvid
 }
 
 # Install memvid
@@ -228,18 +276,14 @@ verify() {
 
 # Main execution
 main() {
-    echo "=========================================="
-    echo "  Memvid Installer v1"
-    echo "=========================================="
+    echo "Memvid Installer"
+    echo "Checking system requirements…"
     echo ""
     
     detect_os
     echo ""
     
     install_missing
-    echo ""
-    
-    install_memvid
     echo ""
     
     verify
