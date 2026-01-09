@@ -178,7 +178,10 @@ install_node() {
 # Check if memvid is already installed
 check_memvid() {
     if command_exists memvid; then
-        MEMVID_VERSION=$(memvid --version 2>/dev/null || echo "unknown")
+        MEMVID_VERSION=$(memvid --version 2>/dev/null)
+        if [[ -z "$MEMVID_VERSION" ]]; then
+            MEMVID_VERSION="unknown"
+        fi
         print_success "memvid already installed ($MEMVID_VERSION)"
         return 0
     else
@@ -219,8 +222,20 @@ install_missing() {
     echo ""
     
     # Ask for confirmation
-    read -p "Continue? [Y/n] " -n 1 -r
-    echo
+    # Read from /dev/tty to ensure it works when piped via curl | bash
+    if [[ -t 0 ]] && [[ -t 1 ]]; then
+        # Interactive terminal - read normally
+        read -p "Continue? [Y/n] " -n 1 -r
+        echo
+    elif [[ -c /dev/tty ]]; then
+        # Piped input - read from terminal device
+        read -p "Continue? [Y/n] " -n 1 -r < /dev/tty
+        echo
+    else
+        # No terminal available - proceed automatically (non-interactive mode)
+        print_info "No terminal detected, proceeding with installation..."
+        REPLY="Y"
+    fi
     if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ ! $REPLY == "" ]]; then
         print_info "Installation cancelled"
         exit 0
