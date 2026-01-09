@@ -188,7 +188,7 @@ install_missing() {
 install_memvid() {
     print_info "Installing memvid globally..."
     
-    if npm install -g memvid; then
+    if npm install -g memvid-cli@latest; then
         print_success "memvid installed successfully"
     else
         print_error "memvid installation failed"
@@ -210,7 +210,7 @@ verify() {
         print_error "memvid verification failed"
         print_info "The installation may have completed, but 'memvid' command is not in PATH"
         print_info "Please check your npm global bin directory and add it to PATH if needed"
-        print_info "Or try: npm list -g memvid"
+        print_info "Or try: npm list -g memvid-cli"
         exit 1
     fi
 }

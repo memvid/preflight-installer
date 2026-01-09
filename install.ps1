@@ -39,7 +39,7 @@ function Test-Winget {
         Write-Info "  https://aka.ms/getwinget"
         Write-Info ""
         Write-Info "Or install git and node manually, then run:"
-        Write-Info "  npm install -g memvid"
+        Write-Info "  npm install -g memvid-cli@latest"
         exit 1
     }
 }
@@ -157,7 +157,7 @@ function Install-Memvid {
     Write-Info "Installing memvid globally..."
     
     try {
-        npm install -g memvid
+        npm install -g memvid-cli@latest
         Write-Success "memvid installed successfully"
     } catch {
         Write-Error "memvid installation failed: $_"
@@ -185,7 +185,7 @@ function Verify-Installation {
         Write-Error "memvid verification failed"
         Write-Info "The installation may have completed, but 'memvid' command is not in PATH"
         Write-Info "Please check your npm global bin directory and add it to PATH if needed"
-        Write-Info "Or try: npm list -g memvid"
+        Write-Info "Or try: npm list -g memvid-cli"
         exit 1
     }
 }

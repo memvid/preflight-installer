@@ -9,7 +9,7 @@ The installer automatically checks for and installs required dependencies, then 
 - **git** - Version control system
 - **node** (LTS) - JavaScript runtime
 - **npm** - Package manager (comes with node)
-- **memvid** - Installed globally via `npm install -g memvid`
+- **memvid** - Installed globally via `npm install -g memvid-cli@latest`
 
 The installer only installs missing tools (no upgrades in v1).
 
